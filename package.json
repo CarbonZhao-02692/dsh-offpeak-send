@@ -1,6 +1,6 @@
 {
   "name": "@carbonzhao/dsh-offpeak-send",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Queue messages to DeepSeek off-peak (half-price) hours automatically — 谷时发送：高峰时段按发送自动排队，到谷时计价开始后投递",
   "type": "module",
   "main": "./lib/index.js",
