@@ -1,0 +1,4 @@
+# 谷时发送：宿主半侧（routes + outbox）与 client 半侧（chip/dock）由 lib/index.js 与 lib/client.js 提供
+- insert:
+    - id: dsh-offpeak-send
+      name: '@carbonzhao/dsh-offpeak-send'

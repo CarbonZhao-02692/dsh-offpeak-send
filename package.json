@@ -1,0 +1,70 @@
+{
+  "name": "@carbonzhao/dsh-offpeak-send",
+  "version": "0.1.0",
+  "description": "Queue messages to DeepSeek off-peak (half-price) hours automatically — 谷时发送：高峰时段按发送自动排队，到谷时计价开始后投递",
+  "type": "module",
+  "main": "./lib/index.js",
+  "author": "CarbonZhao",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CarbonZhao-02692/dsh-offpeak-send.git"
+  },
+  "homepage": "https://github.com/CarbonZhao-02692/dsh-offpeak-send#readme",
+  "bugs": {
+    "url": "https://github.com/CarbonZhao-02692/dsh-offpeak-send/issues"
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "off-peak",
+    "cost-saving",
+    "queue",
+    "scheduler",
+    "composer"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node scripts/link-deps.mjs && node scripts/inline-clock.mjs",
+    "inline": "node scripts/inline-clock.mjs",
+    "check": "node --check lib/index.js && node --check lib/client.js && node --check lib/outbox.js && node --check lib/deliver.js && node --check lib/gc.js",
+    "test": "node --test test/clock.test.mjs test/outbox.test.mjs test/gc-refs.test.mjs test/client-inline.test.mjs"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-client-ui-slots": ">=0.1.0-0 <2",
+    "@deepseek-ai/dsh-llm": ">=0.1.0-0 <2",
+    "@deepseek-ai/dsh-storage-domain": ">=0.1.0-0 <2"
+  },
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ],
+      "platform": "web"
+    }
+  }
+}
