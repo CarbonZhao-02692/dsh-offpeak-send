@@ -99,6 +99,8 @@ interface OutboxItem {
 
 约定：JSON 用 `res.setHeader('content-type','application/json; charset=utf-8')`；错误 `{ok:false, code, message}` + 4xx/5xx。所有 handler 先判方法，否则 405。
 
+约定：宿主侧路由固定挂在 `/dsh-offpeak-send`（反代会剥掉自己的路径前缀），但 **client 侧不得硬编码这个绝对前缀**。浏览器用 `document.baseURI` 解析（DSH 的 `index.html` 是 `<base href="./">`，核心解析 `/api`、`/plugins` 用的是同一基准），这样 WebUI 被反代挂到子路径时（如飞牛 FnConnect 网关的 `/app/deepseek-harness/fngateway/`）请求落在 `<前缀>/dsh-offpeak-send/*`，而根路径部署行为不变。
+
 ## 5. client 职责（`lib/client.js`）
 
 1. **chip**：`ctx.slots.inject('conversation.input.left', () => ctx.slots.register({name:'conversation.input.left', id:'offpeak-chip', order: 50}, Component))`（rc.5 起该槽紧贴权限选择块右侧；`conversation.input.right` 在 rc.5 会落到输入框最右端）；四态（关 / 开·谷时 / 开·高峰 / 开·有排队）＋ tooltip ＋ 点击切换写 `localStorage['dsh.offpeak-send.enabled.v1']`。

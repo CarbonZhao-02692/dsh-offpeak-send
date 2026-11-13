@@ -73,6 +73,8 @@ DSH 宿主没有附件删除 API，对象"unreachable until a future retention p
 
 前缀 `/dsh-offpeak-send`，全部 `kind: 'exact'`。插件路由不需要 GUI token。
 
+浏览器侧不写死这个前缀，而是按 `document.baseURI` 解析（与 DSH 核心解析 `/api`、`/plugins` 的基准一致），所以反代把 WebUI 挂到子路径时也能直接用，例如飞牛 FnConnect 网关的 `/app/deepseek-harness/fngateway/` 下，请求会落到 `<前缀>/dsh-offpeak-send/*`，无需额外配置。
+
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | POST | /stage | 原始字节 + 头 `x-offpeak-kind: image\|file`、`x-offpeak-name`（URL 编码）、`x-offpeak-media-type` → `{ ok, ref }`；413 超 32 MB，415 图像准入失败 |
