@@ -40,7 +40,7 @@
     "build": "node scripts/link-deps.mjs && node scripts/inline-clock.mjs",
     "inline": "node scripts/inline-clock.mjs",
     "check": "node --check lib/index.js && node --check lib/client.js && node --check lib/outbox.js && node --check lib/deliver.js && node --check lib/gc.js",
-    "test": "node --test test/clock.test.mjs test/outbox.test.mjs test/gc-refs.test.mjs test/client-inline.test.mjs"
+    "test": "node --test test/clock.test.mjs test/outbox.test.mjs test/gc-refs.test.mjs test/client-inline.test.mjs test/client-api-base.test.mjs"
   },
   "dependencies": {
     "zod": "^4.0.0"
