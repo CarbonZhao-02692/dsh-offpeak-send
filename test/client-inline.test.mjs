@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
+import { DEFAULT_HOLIDAYS } from '../lib/core/holidays.js'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const clientPath = join(ROOT, 'lib', 'client.js')
@@ -25,7 +26,7 @@ function loadInlineClock() {
   assert.ok(lineEnd > 0, 'clock:begin 标记行异常')
   const body = src.slice(lineEnd + 1, e)
   // 内联块是纯函数声明（const/function），用 Function 求值后导出所需符号。
-  const factory = new Function(body + '\nreturn { phaseAt, sendAt, normalizeCfg, fmtRemaining, nextOffpeakStart, nextPeakStart, HOLIDAYS_2026, DEFAULT_BUFFER_MS }')
+  const factory = new Function(body + '\nreturn { phaseAt, sendAt, normalizeCfg, fmtRemaining, nextOffpeakStart, nextPeakStart, HOLIDAYS_2026, HOLIDAYS_2027, DEFAULT_HOLIDAYS, DEFAULT_BUFFER_MS }')
   return factory()
 }
 
@@ -76,4 +77,20 @@ test('内联块不包含 import/export（避免浏览器端语法错误）', () 
   const body = src.slice(src.indexOf('\n', b) + 1, src.indexOf(END))
   assert.ok(!/^\s*(import|export)\b/m.test(body), '内联块里出现了 import/export')
   assert.ok(body.trim().length > 500, '内联块疑似为空（先跑 npm run inline）')
+})
+
+test('client 内联时钟覆盖 2027 节假日', () => {
+  const inline = loadInlineClock()
+  const cfg = clock.normalizeCfg({ holidays: DEFAULT_HOLIDAYS })
+  const inlineCfg = inline.normalizeCfg({ holidays: inline.DEFAULT_HOLIDAYS })
+  const probes = [
+    Date.UTC(2027, 1, 8, 2, 0, 0),   // 2027-02-08 10:00 北京，春节
+    Date.UTC(2027, 1, 15, 2, 0, 0),  // 2027-02-15 10:00，春节后周一
+    Date.UTC(2027, 9, 1, 2, 0, 0),   // 2027-10-01 10:00，国庆
+    Date.UTC(2027, 9, 11, 2, 0, 0),  // 2027-10-11 10:00，国庆后周一
+  ]
+  for (const t of probes) {
+    assert.equal(inline.phaseAt(t, inlineCfg), clock.phaseAt(t, cfg))
+    assert.deepEqual(inline.sendAt(t, inlineCfg), clock.sendAt(t, cfg))
+  }
 })

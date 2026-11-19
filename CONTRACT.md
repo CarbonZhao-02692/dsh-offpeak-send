@@ -20,7 +20,7 @@
 ## 1. 时间模型（两端共用，已实现）
 
 `lib/core/clock.js` 导出：`phaseAt(ms,cfg)`、`nextOffpeakStart`、`nextPeakStart`、`sendAt(ms,cfg)`、`beijing`、`fmtClock`、`fmtClockSec`、`fmtRemaining`、`normalizeCfg`。
-`cfg = { peak: number[][], bufferMs: number, holidays: string[] }`，缺省 `peak=[[540,720],[840,1080]]`、`bufferMs=3000`（钳制 1000–10000）、`holidays=HOLIDAYS_2026`。
+`cfg = { peak: number[][], bufferMs: number, holidays: string[] }`，缺省 `peak=[[540,720],[840,1080]]`、`bufferMs=3000`（钳制 1000–10000）、`holidays=DEFAULT_HOLIDAYS`（2026+2027）。
 
 client 不能 import 这些文件：`lib/client.js` 内必须保留两个标记行，`npm run inline` 把时钟内联进标记之间（**不要手改标记之间内容**）：
 ```

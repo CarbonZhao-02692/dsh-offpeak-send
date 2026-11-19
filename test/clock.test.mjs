@@ -4,11 +4,11 @@ import {
 	phaseAt, nextOffpeakStart, nextPeakStart, sendAt, beijing, fmtClock, fmtClockSec, fmtRemaining,
 	normalizeCfg,
 } from '../lib/core/clock.js';
-import { HOLIDAYS_2026 } from '../lib/core/holidays.js';
+import { DEFAULT_HOLIDAYS } from '../lib/core/holidays.js';
 
 /** 北京墙钟 → UTC 毫秒 */
 const bj = (y, mo, d, h = 0, mi = 0, s = 0) => Date.UTC(y, mo - 1, d, h - 8, mi, s);
-const CFG = { peak: [[540, 720], [840, 1080]], bufferMs: 3000, holidays: HOLIDAYS_2026 };
+const CFG = { peak: [[540, 720], [840, 1080]], bufferMs: 3000, holidays: DEFAULT_HOLIDAYS };
 
 // 2026-10-28 是周三（工作日）
 test('phaseAt 工作日边界', () => {
@@ -97,8 +97,21 @@ test('fmtRemaining', () => {
 	assert.equal(fmtRemaining(0), '0 秒');
 });
 
-test('未知年份/无节假日配置：按工作日（只多等不多付）', () => {
+test('无节假日配置：按工作日（只多等不多付）', () => {
 	const cfgNoHoliday = { peak: [[540, 720], [840, 1080]], bufferMs: 3000, holidays: [] };
-	assert.equal(phaseAt(bj(2027, 10, 1, 10, 0), cfgNoHoliday), 'peak', '2027 国庆未收录 → 视为工作日高峰');
+	assert.equal(phaseAt(bj(2027, 10, 1, 10, 0), cfgNoHoliday), 'peak', '未收录节假日 → 视为工作日高峰');
 	assert.equal(phaseAt(bj(2027, 10, 2, 10, 0), cfgNoHoliday), 'offpeak', '周六仍谷时');
+});
+
+test('2027 法定节假日（国办发明电〔2026〕10 号）', () => {
+	assert.equal(phaseAt(bj(2027, 1, 4, 10, 0), CFG), 'peak', '元旦后周一');
+	assert.equal(phaseAt(bj(2027, 2, 5, 10, 0), CFG), 'offpeak', '春节首日');
+	assert.equal(phaseAt(bj(2027, 2, 8, 10, 0), CFG), 'offpeak', '春节中段周一');
+	assert.equal(phaseAt(bj(2027, 2, 15, 10, 0), CFG), 'peak', '春节后周一');
+	assert.equal(phaseAt(bj(2027, 4, 5, 10, 0), CFG), 'offpeak', '清明');
+	assert.equal(phaseAt(bj(2027, 5, 4, 10, 0), CFG), 'offpeak', '劳动节');
+	assert.equal(phaseAt(bj(2027, 6, 9, 10, 0), CFG), 'offpeak', '端午');
+	assert.equal(phaseAt(bj(2027, 9, 15, 10, 0), CFG), 'offpeak', '中秋');
+	assert.equal(phaseAt(bj(2027, 10, 1, 10, 0), CFG), 'offpeak', '国庆');
+	assert.equal(phaseAt(bj(2027, 10, 11, 10, 0), CFG), 'peak', '国庆后周一');
 });
