@@ -40,8 +40,14 @@ English: adds an "off-peak" toggle to the DSH composer. When enabled, pressing s
 
 chip 的 `data-offpeak-chip` 为 `on`/`off`，`aria-pressed` 同步；title 里写明当前相位、下次切换点、排队条数，以及「仅对普通发送生效；追问/插话（steer）不排队」。
 
-- 右键 chip 或长按 600 ms 打开设置面板：buffer 滑块（1–10 秒）、当前相位与下次谷时/高峰、节假日表（只读）、隔离区占用、最近清理记录与恢复入口、宿主时间与时钟偏移、发送拦截状态。
-- 关闭开关时若当前会话还有排队：弹「关闭谷时发送？」对话框，三个按钮——全部清除（清队并入 orphan，随后自动清理）、全部发送（立即全部投递）、取消（保持开关开启）。dock 单条的「取消」只删该条，不改开关。
+开关是**会话级**的：chip 与设置面板的「本会话」只改当前会话；没有单独设置的会话跟随设置面板的「新会话默认」。默认与覆盖都由宿主保存在 `<DSH_HOME>/offpeak-send/session-prefs.json`（0600），所以换浏览器/设备后同一个会话的开关仍然一致。规则：
+
+- 有排队消息的会话不能关闭；点了会弹「关闭本会话的谷时发送？」。
+- 默认改成关闭时，如果还有「有排队且没有单独设置」的会话，宿主返回 409，先处理这些队列。
+- 旧版全局 localStorage 开关不再读取；升级后在新设置里设一次默认即可。
+
+- 右键 chip 或长按 600 ms 打开设置面板：本会话开关 / 恢复默认 / 新会话默认、buffer 滑块（1–10 秒）、当前相位与下次谷时/高峰、节假日表（只读）、隔离区占用、最近清理记录与恢复入口、宿主时间与时钟偏移、发送拦截状态。
+- 关闭本会话开关时若还有排队：弹「关闭本会话的谷时发送？」对话框，三个按钮——全部清除（清队并入 orphan，随后自动清理）、全部发送（立即全部投递）、取消（保持开关开启）。dock 单条的「取消」只删该条，不改开关。
 - dock 每条：[立即发送] [修改] [取消]。修改 = 取消该条并把正文放回输入框（有附件时二段确认）。
 - steer（追问/插话）不排队，直通。
 
@@ -49,7 +55,7 @@ chip 的 `data-offpeak-chip` 为 `on`/`off`，`aria-pressed` 同步；title 里�
 
 发送被拦截时：草稿里的附件经 `POST /stage` 落盘成宿主工件引用（`attachments/v1/objects/<sha256>`），再由 `POST /enqueue` 写进 outbox 持久化记录。因此关掉浏览器、重启 DSH 都不会丢排队消息。
 
-- 存储：storageDomain `dsh_offpeak_send` v1，表 outbox / delivered（留 50 条）/ orphans / quarantine / cleanup_reports（留 20 条）。
+- 存储：storageDomain `dsh_offpeak_send` v1，表 outbox / delivered（留 50 条）/ orphans / quarantine / cleanup_reports（留 20 条）；会话开关在 `<DSH_HOME>/offpeak-send/session-prefs.json`（0600，`{ defaultEnabled, sessions }`）。
 - 调度：单 timer（`.unref()`，单次最大 2147483647 ms），到期按会话 FIFO 串行投递；同会话一条 sending 阻塞后一条，跨会话互不阻塞。
 - 投递：`resolveAgent` → 拼 `[text, image?, file?]` → `createUserMessage({ content, source: { kind: 'user' } })` → `agent.followup` → `ctx.sessions.flush`。消息来源标记为真实用户，与手打无差别。
 - 失败重试：最多 3 次，退避 5s / 15s / 60s；终态记 `failed`/`abandoned`。
@@ -76,8 +82,9 @@ DSH 宿主没有附件删除 API，对象"unreachable until a future retention p
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | POST | /stage | 原始字节 + 头 `x-offpeak-kind: image\|file`、`x-offpeak-name`（URL 编码）、`x-offpeak-media-type` → `{ ok, ref }`；413 超 32 MB，415 图像准入失败 |
-| POST | /enqueue | `{ clientTag, sessionId, text, attachments[], submittedModel? }`；谷时 `{ ok, delivered: true }`，高峰 `{ ok, item }`；同 clientTag 幂等 |
-| GET | /pending?sessionId= | `{ ok, serverNow, items[], others }` |
+| POST | /enqueue | `{ clientTag, sessionId, text, attachments[], submittedModel? }`；谷时 `{ ok, delivered: true }`，高峰 `{ ok, item }`；同 clientTag 幂等；本会话开关关闭时 409 `session-disabled` |
+| GET | /pending?sessionId= | `{ ok, serverNow, items[], others, prefs }`；`prefs = { defaultEnabled, sessionEnabled, effectiveEnabled }` |
+| GET/POST | /prefs | GET `?sessionId=` 读会话视图；POST `{ sessionId, enabled: true\|false\|null }` 设置/清除会话覆盖，或 `{ defaultEnabled }` 设置默认；有排队时关闭返回 409（`session-has-pending` / `sessions-have-pending`） |
 | POST | /action | `{ id, action: send-now\|cancel\|retry }`；sending 中 409 |
 | POST | /clear | `{ sessionId }` → 清空该会话排队，附件入 orphans（origin=clear） |
 | POST | /flush | `{ sessionId }` → 立即投递该会话全部排队 |
@@ -85,7 +92,7 @@ DSH 宿主没有附件删除 API，对象"unreachable until a future retention p
 | POST | /cleanup/restore | `{ attachmentId }` → 从隔离区回位 |
 | GET/POST | /config | 读写配置；POST 支持 bufferMs / holidays / autoCleanup / peak / forceWorkday |
 
-配置持久化在 `<DSH_HOME>/offpeak-send/config.json`。
+配置持久化在 `<DSH_HOME>/offpeak-send/config.json`；会话开关持久化在 `<DSH_HOME>/offpeak-send/session-prefs.json`（均 0600 语义；config 由插件保存）。
 
 ## 从源码构建与注入（开发用）
 
@@ -104,18 +111,19 @@ dev_inject_plugin { "dir": "D:/dshSessions/offpeak-send/dsh-offpeak-send" }
 - **host**（`lib/index.js`、`outbox.js`、`deliver.js`、`gc.js`）：重启 DSH，或 `dev_reload_package("dsh-offpeak-send")`（清缓存、重建 fiber）。
 - **client**（`lib/client.js`）：刷新浏览器页面。注意浏览器会按 URL 缓存 `/plugins/??…` 合并 bundle，直接刷新可能仍跑旧代码（本次实测踩过：页面显示高峰、发送却直通不排队）。排查/验证时用带时间戳的地址重开，例如在页面里 `location.href = 'http://127.0.0.1:3080/?cb=' + Date.now()`，再确认行为变化。
 
-**注入器坑**：注入器的 slot 白名单（`D:/dsh-plugins/injector-dist/lib/index.js` 的 `clientSkeletonProblems`，`:8502-8517`）记忆的是启动时的值；改文件后 `dev_reload_package("dsh-super-injector")` 不会让它重新读取，必须重启 DSH。现已在 `:8511-8513` 补入 `conversation.input.right/left/permission`（重启后生效）。client bundle 里仍保留一个合法 slot 的单行锚点（`ctx.slots.register({ name: 'shell.overlay', id: 'offpeak-anchor', order: 900 }, () => null)`，返回 null 不渲染）作为兜底；确认白名单已生效后可删。
+**注入器坑**：注入器的 slot 白名单（`D:/dsh-plugins/injector-dist/lib/index.js` 的 `clientSkeletonProblems`，`:8502-8517`）记忆的是启动时的值；改文件后 `dev_reload_package("dsh-super-injector")` 不会让它重新读取，必须重启 DSH。现已在 `:8511-8513` 补入 `conversation.input.right/left/permission`（重启后生效）。client bundle 用 `shell.overlay` 作为合法锚点，同时承载设置面板/关闭对话框（`OverlayHost`）：这层在 frame root，不会被 composer 的 transform/filter 盖住；不要再把它改回返回 null 的占位。
 
 ## 测试
 
 ```bash
-npm test    # 49 例全绿
+npm test    # 56 例全绿
 ```
 
 - `test/clock.test.mjs`（9）：相位边界 8:59:59 / 9:00 / 11:59:59 / 12:00 / 13:59:59 / 14:00 / 17:59:59 / 18:00、周末与节假日、调休周六、跨日与跨周末的 nextOffpeakStart/nextPeakStart、sendAt 落点不变（7 天每 7 分钟采样 + 边界 ±1 ms：落点必为谷时、等待 ≤ 4h + buffer）、buffer 钳制、时区固定。
 - `test/outbox.test.mjs`（19）：FIFO、状态机、clientTag 幂等、退避、崩溃恢复、容量上限。
 - `test/gc-refs.test.mjs`（18）：引用核对（zstd 帧扫描、缓存失效）、候选筛选、rename/恢复/过期删除、安全阀与失败即停。
 - `test/client-inline.test.mjs`（3）：内联块存在且与源文件一致（重跑幂等）、client bundle 可解析。
+- `test/prefs.test.mjs`（7）：默认/覆盖归一化、effective 回退、`sessionPrefsView`、有排队时禁止关闭会话/默认、非法输入。
 
 ## 端到端自测（造高峰）
 
@@ -142,6 +150,9 @@ curl -X POST -H 'content-type: application/json' \
 - 模型是否支持图像靠模型名启发式匹配，可能误判。
 - 取消/清除/丢图产生的附件孤儿最长要 7 天才会真正释放磁盘（隔离区窗口），期间可以在设置面板里恢复。
 - 节假日表只覆盖 2026；后续年份需按官方通知补 `lib/core/holidays.js`（缺省按工作日，只会多等不多付）。
+- 旧版全局 localStorage 开关不再读取；升级后宿主默认开启，已有自定义的用户需要在设置面板重设一次「新会话默认」。
+- 会话开关由宿主文件持久化，跨浏览器/设备一致；另一台设备上的变化最多 3 秒（页面隐藏 10 秒）后反映，不是实时推送。
+- 有排队消息的会话不能被关闭；默认关闭时若还有未固定的排队会话，宿主拒绝 409。这样不会出现「会话在排队但谷时模式是关的」。
 - 浏览器刷新后 dock 依赖 3 秒轮询恢复（页面隐藏时降为 10 秒），不是实时推送。
 - 计价规则按 2026 年 8 月公布的口径（高峰 = 工作日 09:00–12:00 / 14:00–18:00，其余半价）；口径若再变，需同步 `lib/core/clock.js` 的 `DEFAULT_PEAK_RANGES`。
 
